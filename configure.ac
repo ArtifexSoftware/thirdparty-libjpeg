@@ -5,7 +5,7 @@
 # Configure script for IJG libjpeg
 #
 
-AC_INIT([libjpeg], [8.4.0])
+AC_INIT([libjpeg], [9.0.0])
 
 # Directory where autotools helper scripts lives.
 AC_CONFIG_AUX_DIR([.])
@@ -21,15 +21,12 @@ AC_CANONICAL_TARGET
 
 # Initialize Automake
 # Don't require all the GNU mandated files
-AM_INIT_AUTOMAKE([-Wall -Werror -Wno-obsolete ansi2knr no-dist foreign])
+AM_INIT_AUTOMAKE([-Wall -Werror no-dist foreign])
 
 # Make --enable-silent-rules the default.
 # To get verbose build output you may configure
 # with --disable-silent-rules or use "make V=1".
 AM_SILENT_RULES([yes])
-
-# This is required when using the de-ANSI-fication feature.
-AM_C_PROTOTYPES
 
 # Add configure option --enable-maintainer-mode which enables
 # dependency checking and generation useful to package maintainers.
@@ -43,6 +40,7 @@ AC_PROG_CPP
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
 AC_PROG_LN_S
+AM_PROG_AR
 
 # Check if LD supports linker scripts,
 # and define automake conditional HAVE_LD_VERSION_SCRIPT if so.
