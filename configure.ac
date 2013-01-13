@@ -223,6 +223,10 @@ int possibly_dupli_function () { return 1; }
 # Run-time checks
 AC_MSG_CHECKING([to see if char is signed])
 AC_TRY_RUN([
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#include <stdio.h>
 #ifdef HAVE_PROTOTYPES
 int is_char_signed (int arg)
 #else
@@ -252,6 +256,10 @@ int main() {
 
 AC_MSG_CHECKING([to see if right shift is signed])
 AC_TRY_RUN([
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#include <stdio.h>
 #ifdef HAVE_PROTOTYPES
 int is_shifting_signed (long arg)
 #else
@@ -286,6 +294,9 @@ int main() {
 
 AC_MSG_CHECKING([to see if fopen accepts b spec])
 AC_TRY_RUN([
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
 #include <stdio.h>
 int main() {
   if (fopen("conftestdata", "wb") != NULL)

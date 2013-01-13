@@ -2,7 +2,7 @@
  * cjpeg.c
  *
  * Copyright (C) 1991-1998, Thomas G. Lane.
- * Modified 2003-2012 by Guido Vollbeding.
+ * Modified 2003-2013 by Guido Vollbeding.
  * This file is part of the Independent JPEG Group's software.
  * For conditions of distribution and use, see the accompanying README file.
  *
@@ -423,7 +423,7 @@ parse_switches (j_compress_ptr cinfo, int argc, char **argv,
       /* Scale the image by a fraction M/N. */
       if (++argn >= argc)	/* advance to next argument */
 	usage();
-      if (sscanf(argv[argn], "%d/%d",
+      if (sscanf(argv[argn], "%u/%u",
 		 &cinfo->scale_num, &cinfo->scale_denom) != 2)
 	usage();
 
