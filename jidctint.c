@@ -2,7 +2,7 @@
  * jidctint.c
  *
  * Copyright (C) 1991-1998, Thomas G. Lane.
- * Modification developed 2002-2015 by Guido Vollbeding.
+ * Modification developed 2002-2016 by Guido Vollbeding.
  * This file is part of the Independent JPEG Group's software.
  * For conditions of distribution and use, see the accompanying README file.
  *
@@ -175,6 +175,7 @@
 /*
  * Perform dequantization and inverse DCT on one block of coefficients.
  *
+ * Optimized algorithm with 12 multiplications in the 1-D kernel.
  * cK represents sqrt(2) * cos(K*pi/16).
  */
 
@@ -441,7 +442,7 @@ jpeg_idct_islow (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
 /*
  * Perform dequantization and inverse DCT on one block of coefficients,
- * producing a 7x7 output block.
+ * producing a reduced-size 7x7 output block.
  *
  * Optimized algorithm with 12 multiplications in the 1-D kernel.
  * cK represents sqrt(2) * cos(K*pi/14).
@@ -2664,7 +2665,7 @@ jpeg_idct_16x16 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
       CLAMP_DC(tmp0);
     tmp0 <<= CONST_BITS;
     /* Add fudge factor here for final descale. */
-    tmp0 += 1 << (CONST_BITS-PASS1_BITS-1);
+    tmp0 += ONE << (CONST_BITS-PASS1_BITS-1);
 
     z1 = DEQUANTIZE(inptr[DCTSIZE*4], quantptr[DCTSIZE*4]);
     tmp1 = MULTIPLY(z1, FIX(1.306562965));      /* c4[16] = c2[8] */
@@ -2964,13 +2965,6 @@ jpeg_idct_16x8 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
      * The rotator is c(-6).
      */
 
-    z2 = DEQUANTIZE(inptr[DCTSIZE*2], quantptr[DCTSIZE*2]);
-    z3 = DEQUANTIZE(inptr[DCTSIZE*6], quantptr[DCTSIZE*6]);
-
-    z1 = MULTIPLY(z2 + z3, FIX_0_541196100);       /* c6 */
-    tmp2 = z1 + MULTIPLY(z2, FIX_0_765366865);     /* c2-c6 */
-    tmp3 = z1 - MULTIPLY(z3, FIX_1_847759065);     /* c2+c6 */
-
     z2 = DEQUANTIZE(inptr[DCTSIZE*0], quantptr[DCTSIZE*0]);
     if (ctr == DCTSIZE)
       CLAMP_DC(z2);
@@ -2982,6 +2976,13 @@ jpeg_idct_16x8 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     tmp0 = z2 + z3;
     tmp1 = z2 - z3;
+
+    z2 = DEQUANTIZE(inptr[DCTSIZE*2], quantptr[DCTSIZE*2]);
+    z3 = DEQUANTIZE(inptr[DCTSIZE*6], quantptr[DCTSIZE*6]);
+
+    z1 = MULTIPLY(z2 + z3, FIX_0_541196100);       /* c6 */
+    tmp2 = z1 + MULTIPLY(z2, FIX_0_765366865);     /* c2-c6 */
+    tmp3 = z1 - MULTIPLY(z3, FIX_1_847759065);     /* c2+c6 */
 
     tmp10 = tmp0 + tmp2;
     tmp13 = tmp0 - tmp2;
@@ -4952,13 +4953,6 @@ jpeg_idct_4x8 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
      * The rotator is c(-6).
      */
 
-    z2 = DEQUANTIZE(inptr[DCTSIZE*2], quantptr[DCTSIZE*2]);
-    z3 = DEQUANTIZE(inptr[DCTSIZE*6], quantptr[DCTSIZE*6]);
-
-    z1 = MULTIPLY(z2 + z3, FIX_0_541196100);       /* c6 */
-    tmp2 = z1 + MULTIPLY(z2, FIX_0_765366865);     /* c2-c6 */
-    tmp3 = z1 - MULTIPLY(z3, FIX_1_847759065);     /* c2+c6 */
-
     z2 = DEQUANTIZE(inptr[DCTSIZE*0], quantptr[DCTSIZE*0]);
     if (ctr == 4)
       CLAMP_DC(z2);
@@ -4970,6 +4964,13 @@ jpeg_idct_4x8 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     tmp0 = z2 + z3;
     tmp1 = z2 - z3;
+
+    z2 = DEQUANTIZE(inptr[DCTSIZE*2], quantptr[DCTSIZE*2]);
+    z3 = DEQUANTIZE(inptr[DCTSIZE*6], quantptr[DCTSIZE*6]);
+
+    z1 = MULTIPLY(z2 + z3, FIX_0_541196100);       /* c6 */
+    tmp2 = z1 + MULTIPLY(z2, FIX_0_765366865);     /* c2-c6 */
+    tmp3 = z1 - MULTIPLY(z3, FIX_1_847759065);     /* c2+c6 */
 
     tmp10 = tmp0 + tmp2;
     tmp13 = tmp0 - tmp2;
