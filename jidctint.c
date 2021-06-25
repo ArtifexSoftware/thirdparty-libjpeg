@@ -2,7 +2,7 @@
  * jidctint.c
  *
  * Copyright (C) 1991-1998, Thomas G. Lane.
- * Modification developed 2002-2013 by Guido Vollbeding.
+ * Modification developed 2002-2015 by Guido Vollbeding.
  * This file is part of the Independent JPEG Group's software.
  * For conditions of distribution and use, see the accompanying README file.
  *
@@ -241,13 +241,6 @@ jpeg_idct_islow (j_decompress_ptr cinfo, jpeg_component_info * compptr,
      * The rotator is c(-6).
      */
 
-    z2 = DEQUANTIZE(inptr[DCTSIZE*2], quantptr[DCTSIZE*2]);
-    z3 = DEQUANTIZE(inptr[DCTSIZE*6], quantptr[DCTSIZE*6]);
-
-    z1 = MULTIPLY(z2 + z3, FIX_0_541196100);       /* c6 */
-    tmp2 = z1 + MULTIPLY(z2, FIX_0_765366865);     /* c2-c6 */
-    tmp3 = z1 - MULTIPLY(z3, FIX_1_847759065);     /* c2+c6 */
-
     z2 = DEQUANTIZE(inptr[DCTSIZE*0], quantptr[DCTSIZE*0]);
     if (ctr == DCTSIZE)
       CLAMP_DC(z2);
@@ -259,6 +252,13 @@ jpeg_idct_islow (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     tmp0 = z2 + z3;
     tmp1 = z2 - z3;
+
+    z2 = DEQUANTIZE(inptr[DCTSIZE*2], quantptr[DCTSIZE*2]);
+    z3 = DEQUANTIZE(inptr[DCTSIZE*6], quantptr[DCTSIZE*6]);
+
+    z1 = MULTIPLY(z2 + z3, FIX_0_541196100);       /* c6 */
+    tmp2 = z1 + MULTIPLY(z2, FIX_0_765366865);     /* c2-c6 */
+    tmp3 = z1 - MULTIPLY(z3, FIX_1_847759065);     /* c2+c6 */
 
     tmp10 = tmp0 + tmp2;
     tmp13 = tmp0 - tmp2;
@@ -319,6 +319,12 @@ jpeg_idct_islow (j_decompress_ptr cinfo, jpeg_component_info * compptr,
   wsptr = workspace;
   for (ctr = 0; ctr < DCTSIZE; ctr++) {
     outptr = output_buf[ctr] + output_col;
+
+    /* Add range center and fudge factor for final descale and range-limit. */
+    z2 = (INT32) wsptr[0] +
+	   ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	    (ONE << (PASS1_BITS+2)));
+
     /* Rows of zeroes can be exploited in the same way as we did with columns.
      * However, the column calculation has created many nonzero AC terms, so
      * the simplification applies less often (typically 5% to 10% of the time).
@@ -331,7 +337,7 @@ jpeg_idct_islow (j_decompress_ptr cinfo, jpeg_component_info * compptr,
     if (wsptr[1] == 0 && wsptr[2] == 0 && wsptr[3] == 0 && wsptr[4] == 0 &&
 	wsptr[5] == 0 && wsptr[6] == 0 && wsptr[7] == 0) {
       /* AC terms all zero */
-      JSAMPLE dcval = range_limit[(int) DESCALE((INT32) wsptr[0], PASS1_BITS+3)
+      JSAMPLE dcval = range_limit[(int) RIGHT_SHIFT(z2, PASS1_BITS+3)
 				  & RANGE_MASK];
 
       outptr[0] = dcval;
@@ -352,19 +358,17 @@ jpeg_idct_islow (j_decompress_ptr cinfo, jpeg_component_info * compptr,
      * The rotator is c(-6).
      */
 
+    z3 = (INT32) wsptr[4];
+
+    tmp0 = (z2 + z3) << CONST_BITS;
+    tmp1 = (z2 - z3) << CONST_BITS;
+
     z2 = (INT32) wsptr[2];
     z3 = (INT32) wsptr[6];
 
     z1 = MULTIPLY(z2 + z3, FIX_0_541196100);       /* c6 */
     tmp2 = z1 + MULTIPLY(z2, FIX_0_765366865);     /* c2-c6 */
     tmp3 = z1 - MULTIPLY(z3, FIX_1_847759065);     /* c2+c6 */
-
-    /* Add fudge factor here for final descale. */
-    z2 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
-    z3 = (INT32) wsptr[4];
-
-    tmp0 = (z2 + z3) << CONST_BITS;
-    tmp1 = (z2 - z3) << CONST_BITS;
 
     tmp10 = tmp0 + tmp2;
     tmp13 = tmp0 - tmp2;
@@ -523,8 +527,10 @@ jpeg_idct_7x7 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    tmp13 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    tmp13 = (INT32) wsptr[0] +
+	      ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	       (ONE << (PASS1_BITS+2)));
     tmp13 <<= CONST_BITS;
 
     z1 = (INT32) wsptr[2];
@@ -661,8 +667,10 @@ jpeg_idct_6x6 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    tmp0 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    tmp0 = (INT32) wsptr[0] +
+	     ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	      (ONE << (PASS1_BITS+2)));
     tmp0 <<= CONST_BITS;
     tmp2 = (INT32) wsptr[4];
     tmp10 = MULTIPLY(tmp2, FIX(0.707106781));   /* c4 */
@@ -782,8 +790,10 @@ jpeg_idct_5x5 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    tmp12 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    tmp12 = (INT32) wsptr[0] +
+	      ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	       (ONE << (PASS1_BITS+2)));
     tmp12 <<= CONST_BITS;
     tmp0 = (INT32) wsptr[2];
     tmp1 = (INT32) wsptr[4];
@@ -896,8 +906,10 @@ jpeg_idct_4x4 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    tmp0 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    tmp0 = (INT32) wsptr[0] +
+	     ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	      (ONE << (PASS1_BITS+2)));
     tmp2 = (INT32) wsptr[2];
 
     tmp10 = (tmp0 + tmp2) << CONST_BITS;
@@ -995,8 +1007,10 @@ jpeg_idct_3x3 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    tmp0 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    tmp0 = (INT32) wsptr[0] +
+	     ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	      (ONE << (PASS1_BITS+2)));
     tmp0 <<= CONST_BITS;
     tmp2 = (INT32) wsptr[2];
     tmp12 = MULTIPLY(tmp2, FIX(0.707106781)); /* c2 */
@@ -1037,11 +1051,11 @@ jpeg_idct_2x2 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 	       JCOEFPTR coef_block,
 	       JSAMPARRAY output_buf, JDIMENSION output_col)
 {
-  INT32 tmp0, tmp1, tmp2, tmp3, tmp4, tmp5;
+  DCTELEM tmp0, tmp1, tmp2, tmp3, tmp4, tmp5;
   ISLOW_MULT_TYPE * quantptr;
   JSAMPROW outptr;
   JSAMPLE *range_limit = IDCT_range_limit(cinfo);
-  SHIFT_TEMPS
+  ISHIFT_TEMPS
 
   /* Pass 1: process columns from input. */
 
@@ -1051,8 +1065,8 @@ jpeg_idct_2x2 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
   tmp4 = DEQUANTIZE(coef_block[DCTSIZE*0], quantptr[DCTSIZE*0]);
   CLAMP_DC(tmp4);
   tmp5 = DEQUANTIZE(coef_block[DCTSIZE*1], quantptr[DCTSIZE*1]);
-  /* Add fudge factor here for final descale. */
-  tmp4 += ONE << 2;
+  /* Add range center and fudge factor for final descale and range-limit. */
+  tmp4 += (((DCTELEM) RANGE_CENTER) << 3) + (1 << 2);
 
   tmp0 = tmp4 + tmp5;
   tmp2 = tmp4 - tmp5;
@@ -1069,14 +1083,14 @@ jpeg_idct_2x2 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
   /* Row 0 */
   outptr = output_buf[0] + output_col;
 
-  outptr[0] = range_limit[(int) RIGHT_SHIFT(tmp0 + tmp1, 3) & RANGE_MASK];
-  outptr[1] = range_limit[(int) RIGHT_SHIFT(tmp0 - tmp1, 3) & RANGE_MASK];
+  outptr[0] = range_limit[(int) IRIGHT_SHIFT(tmp0 + tmp1, 3) & RANGE_MASK];
+  outptr[1] = range_limit[(int) IRIGHT_SHIFT(tmp0 - tmp1, 3) & RANGE_MASK];
 
   /* Row 1 */
   outptr = output_buf[1] + output_col;
 
-  outptr[0] = range_limit[(int) RIGHT_SHIFT(tmp2 + tmp3, 3) & RANGE_MASK];
-  outptr[1] = range_limit[(int) RIGHT_SHIFT(tmp2 - tmp3, 3) & RANGE_MASK];
+  outptr[0] = range_limit[(int) IRIGHT_SHIFT(tmp2 + tmp3, 3) & RANGE_MASK];
+  outptr[1] = range_limit[(int) IRIGHT_SHIFT(tmp2 - tmp3, 3) & RANGE_MASK];
 }
 
 
@@ -1093,18 +1107,22 @@ jpeg_idct_1x1 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 	       JCOEFPTR coef_block,
 	       JSAMPARRAY output_buf, JDIMENSION output_col)
 {
-  int dcval;
+  DCTELEM dcval;
   ISLOW_MULT_TYPE * quantptr;
   JSAMPLE *range_limit = IDCT_range_limit(cinfo);
-  SHIFT_TEMPS
+  ISHIFT_TEMPS
 
   /* 1x1 is trivial: just take the DC coefficient divided by 8. */
+
   quantptr = (ISLOW_MULT_TYPE *) compptr->dct_table;
+
   dcval = DEQUANTIZE(coef_block[0], quantptr[0]);
   CLAMP_DC(dcval);
-  dcval = (int) DESCALE((INT32) dcval, 3);
+  /* Add range center and fudge factor for descale and range-limit. */
+  dcval += (((DCTELEM) RANGE_CENTER) << 3) + (1 << 2);
 
-  output_buf[0][output_col] = range_limit[dcval & RANGE_MASK];
+  output_buf[0][output_col] =
+    range_limit[(int) IRIGHT_SHIFT(dcval, 3) & RANGE_MASK];
 }
 
 
@@ -1205,8 +1223,10 @@ jpeg_idct_9x9 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    tmp0 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    tmp0 = (INT32) wsptr[0] +
+	     ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	      (ONE << (PASS1_BITS+2)));
     tmp0 <<= CONST_BITS;
 
     z1 = (INT32) wsptr[2];
@@ -1390,8 +1410,10 @@ jpeg_idct_10x10 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    z3 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    z3 = (INT32) wsptr[0] +
+	   ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	    (ONE << (PASS1_BITS+2)));
     z3 <<= CONST_BITS;
     z4 = (INT32) wsptr[4];
     z1 = MULTIPLY(z4, FIX(1.144122806));         /* c4 */
@@ -1585,8 +1607,10 @@ jpeg_idct_11x11 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    tmp10 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    tmp10 = (INT32) wsptr[0] +
+	      ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	       (ONE << (PASS1_BITS+2)));
     tmp10 <<= CONST_BITS;
 
     z1 = (INT32) wsptr[2];
@@ -1791,8 +1815,10 @@ jpeg_idct_12x12 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    z3 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    z3 = (INT32) wsptr[0] +
+	   ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	    (ONE << (PASS1_BITS+2)));
     z3 <<= CONST_BITS;
 
     z4 = (INT32) wsptr[4];
@@ -2014,8 +2040,10 @@ jpeg_idct_13x13 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    z1 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    z1 = (INT32) wsptr[0] +
+	   ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	    (ONE << (PASS1_BITS+2)));
     z1 <<= CONST_BITS;
 
     z2 = (INT32) wsptr[2];
@@ -2243,8 +2271,10 @@ jpeg_idct_14x14 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    z1 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    z1 = (INT32) wsptr[0] +
+	   ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	    (ONE << (PASS1_BITS+2)));
     z1 <<= CONST_BITS;
     z4 = (INT32) wsptr[4];
     z2 = MULTIPLY(z4, FIX(1.274162392));         /* c4 */
@@ -2477,8 +2507,10 @@ jpeg_idct_15x15 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    z1 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    z1 = (INT32) wsptr[0] +
+	   ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	    (ONE << (PASS1_BITS+2)));
     z1 <<= CONST_BITS;
 
     z2 = (INT32) wsptr[2];
@@ -2730,8 +2762,10 @@ jpeg_idct_16x16 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    tmp0 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    tmp0 = (INT32) wsptr[0] +
+	     ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	      (ONE << (PASS1_BITS+2)));
     tmp0 <<= CONST_BITS;
 
     z1 = (INT32) wsptr[4];
@@ -3010,8 +3044,10 @@ jpeg_idct_16x8 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    tmp0 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    tmp0 = (INT32) wsptr[0] +
+	     ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	      (ONE << (PASS1_BITS+2)));
     tmp0 <<= CONST_BITS;
 
     z1 = (INT32) wsptr[4];
@@ -3230,8 +3266,10 @@ jpeg_idct_14x7 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    z1 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    z1 = (INT32) wsptr[0] +
+	   ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	    (ONE << (PASS1_BITS+2)));
     z1 <<= CONST_BITS;
     z4 = (INT32) wsptr[4];
     z2 = MULTIPLY(z4, FIX(1.274162392));         /* c4 */
@@ -3416,8 +3454,10 @@ jpeg_idct_12x6 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    z3 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    z3 = (INT32) wsptr[0] +
+	   ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	    (ONE << (PASS1_BITS+2)));
     z3 <<= CONST_BITS;
 
     z4 = (INT32) wsptr[4];
@@ -3594,8 +3634,10 @@ jpeg_idct_10x5 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    z3 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    z3 = (INT32) wsptr[0] +
+	   ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	    (ONE << (PASS1_BITS+2)));
     z3 <<= CONST_BITS;
     z4 = (INT32) wsptr[4];
     z1 = MULTIPLY(z4, FIX(1.144122806));         /* c4 */
@@ -3761,19 +3803,21 @@ jpeg_idct_8x4 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
      * The rotator is c(-6).
      */
 
+    /* Add range center and fudge factor for final descale and range-limit. */
+    z2 = (INT32) wsptr[0] +
+	   ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	    (ONE << (PASS1_BITS+2)));
+    z3 = (INT32) wsptr[4];
+
+    tmp0 = (z2 + z3) << CONST_BITS;
+    tmp1 = (z2 - z3) << CONST_BITS;
+
     z2 = (INT32) wsptr[2];
     z3 = (INT32) wsptr[6];
 
     z1 = MULTIPLY(z2 + z3, FIX_0_541196100);       /* c6 */
     tmp2 = z1 + MULTIPLY(z2, FIX_0_765366865);     /* c2-c6 */
     tmp3 = z1 - MULTIPLY(z3, FIX_1_847759065);     /* c2+c6 */
-
-    /* Add fudge factor here for final descale. */
-    z2 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
-    z3 = (INT32) wsptr[4];
-
-    tmp0 = (z2 + z3) << CONST_BITS;
-    tmp1 = (z2 - z3) << CONST_BITS;
 
     tmp10 = tmp0 + tmp2;
     tmp13 = tmp0 - tmp2;
@@ -3908,8 +3952,10 @@ jpeg_idct_6x3 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    tmp0 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    tmp0 = (INT32) wsptr[0] +
+	     ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	      (ONE << (PASS1_BITS+2)));
     tmp0 <<= CONST_BITS;
     tmp2 = (INT32) wsptr[4];
     tmp10 = MULTIPLY(tmp2, FIX(0.707106781));   /* c4 */
@@ -4012,8 +4058,8 @@ jpeg_idct_4x2 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    tmp0 = wsptr[0] + (ONE << 2);
+    /* Add range center and fudge factor for final descale and range-limit. */
+    tmp0 = wsptr[0] + ((((INT32) RANGE_CENTER) << 3) + (ONE << 2));
     tmp2 = wsptr[2];
 
     tmp10 = (tmp0 + tmp2) << CONST_BITS;
@@ -4061,11 +4107,11 @@ jpeg_idct_2x1 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 	       JCOEFPTR coef_block,
 	       JSAMPARRAY output_buf, JDIMENSION output_col)
 {
-  INT32 tmp0, tmp1;
+  DCTELEM tmp0, tmp1;
   ISLOW_MULT_TYPE * quantptr;
   JSAMPROW outptr;
   JSAMPLE *range_limit = IDCT_range_limit(cinfo);
-  SHIFT_TEMPS
+  ISHIFT_TEMPS
 
   /* Pass 1: empty. */
 
@@ -4078,8 +4124,8 @@ jpeg_idct_2x1 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
   tmp0 = DEQUANTIZE(coef_block[0], quantptr[0]);
   CLAMP_DC(tmp0);
-  /* Add fudge factor here for final descale. */
-  tmp0 += ONE << 2;
+  /* Add range center and fudge factor for final descale and range-limit. */
+  tmp0 += (((DCTELEM) RANGE_CENTER) << 3) + (1 << 2);
 
   /* Odd part */
 
@@ -4087,8 +4133,8 @@ jpeg_idct_2x1 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
   /* Final output stage */
 
-  outptr[0] = range_limit[(int) RIGHT_SHIFT(tmp0 + tmp1, 3) & RANGE_MASK];
-  outptr[1] = range_limit[(int) RIGHT_SHIFT(tmp0 - tmp1, 3) & RANGE_MASK];
+  outptr[0] = range_limit[(int) IRIGHT_SHIFT(tmp0 + tmp1, 3) & RANGE_MASK];
+  outptr[1] = range_limit[(int) IRIGHT_SHIFT(tmp0 - tmp1, 3) & RANGE_MASK];
 }
 
 
@@ -4235,19 +4281,21 @@ jpeg_idct_8x16 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
      * The rotator is c(-6).
      */
 
+    /* Add range center and fudge factor for final descale and range-limit. */
+    z2 = (INT32) wsptr[0] +
+	   ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	    (ONE << (PASS1_BITS+2)));
+    z3 = (INT32) wsptr[4];
+
+    tmp0 = (z2 + z3) << CONST_BITS;
+    tmp1 = (z2 - z3) << CONST_BITS;
+
     z2 = (INT32) wsptr[2];
     z3 = (INT32) wsptr[6];
 
     z1 = MULTIPLY(z2 + z3, FIX_0_541196100);       /* c6 */
     tmp2 = z1 + MULTIPLY(z2, FIX_0_765366865);     /* c2-c6 */
     tmp3 = z1 - MULTIPLY(z3, FIX_1_847759065);     /* c2+c6 */
-
-    /* Add fudge factor here for final descale. */
-    z2 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
-    z3 = (INT32) wsptr[4];
-
-    tmp0 = (z2 + z3) << CONST_BITS;
-    tmp1 = (z2 - z3) << CONST_BITS;
 
     tmp10 = tmp0 + tmp2;
     tmp13 = tmp0 - tmp2;
@@ -4440,8 +4488,10 @@ jpeg_idct_7x14 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    tmp23 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    tmp23 = (INT32) wsptr[0] +
+	      ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	       (ONE << (PASS1_BITS+2)));
     tmp23 <<= CONST_BITS;
 
     z1 = (INT32) wsptr[2];
@@ -4623,8 +4673,10 @@ jpeg_idct_6x12 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    tmp10 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    tmp10 = (INT32) wsptr[0] +
+	      ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	       (ONE << (PASS1_BITS+2)));
     tmp10 <<= CONST_BITS;
     tmp12 = (INT32) wsptr[4];
     tmp20 = MULTIPLY(tmp12, FIX(0.707106781));   /* c4 */
@@ -4783,8 +4835,10 @@ jpeg_idct_5x10 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    tmp12 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    tmp12 = (INT32) wsptr[0] +
+	      ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	       (ONE << (PASS1_BITS+2)));
     tmp12 <<= CONST_BITS;
     tmp13 = (INT32) wsptr[2];
     tmp14 = (INT32) wsptr[4];
@@ -4979,8 +5033,10 @@ jpeg_idct_4x8 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    tmp0 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    tmp0 = (INT32) wsptr[0] +
+	     ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	      (ONE << (PASS1_BITS+2)));
     tmp2 = (INT32) wsptr[2];
 
     tmp10 = (tmp0 + tmp2) << CONST_BITS;
@@ -5094,8 +5150,10 @@ jpeg_idct_3x6 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    tmp0 = (INT32) wsptr[0] + (ONE << (PASS1_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    tmp0 = (INT32) wsptr[0] +
+	     ((((INT32) RANGE_CENTER) << (PASS1_BITS+3)) +
+	      (ONE << (PASS1_BITS+2)));
     tmp0 <<= CONST_BITS;
     tmp2 = (INT32) wsptr[2];
     tmp12 = MULTIPLY(tmp2, FIX(0.707106781)); /* c2 */
@@ -5192,8 +5250,10 @@ jpeg_idct_2x4 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
     /* Even part */
 
-    /* Add fudge factor here for final descale. */
-    tmp10 = wsptr[0] + (ONE << (CONST_BITS+2));
+    /* Add range center and fudge factor for final descale and range-limit. */
+    tmp10 = wsptr[0] +
+	      ((((INT32) RANGE_CENTER) << (CONST_BITS+3)) +
+	       (ONE << (CONST_BITS+2)));
 
     /* Odd part */
 
@@ -5223,21 +5283,21 @@ jpeg_idct_1x2 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 	       JCOEFPTR coef_block,
 	       JSAMPARRAY output_buf, JDIMENSION output_col)
 {
-  INT32 tmp0, tmp1;
+  DCTELEM tmp0, tmp1;
   ISLOW_MULT_TYPE * quantptr;
   JSAMPLE *range_limit = IDCT_range_limit(cinfo);
-  SHIFT_TEMPS
+  ISHIFT_TEMPS
 
   /* Process 1 column from input, store into output array. */
 
   quantptr = (ISLOW_MULT_TYPE *) compptr->dct_table;
 
   /* Even part */
-    
+
   tmp0 = DEQUANTIZE(coef_block[DCTSIZE*0], quantptr[DCTSIZE*0]);
   CLAMP_DC(tmp0);
-  /* Add fudge factor here for final descale. */
-  tmp0 += ONE << 2;
+  /* Add range center and fudge factor for final descale and range-limit. */
+  tmp0 += (((DCTELEM) RANGE_CENTER) << 3) + (1 << 2);
 
   /* Odd part */
 
@@ -5245,10 +5305,10 @@ jpeg_idct_1x2 (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
   /* Final output stage */
 
-  output_buf[0][output_col] = range_limit[(int) RIGHT_SHIFT(tmp0 + tmp1, 3)
-					  & RANGE_MASK];
-  output_buf[1][output_col] = range_limit[(int) RIGHT_SHIFT(tmp0 - tmp1, 3)
-					  & RANGE_MASK];
+  output_buf[0][output_col] =
+    range_limit[(int) IRIGHT_SHIFT(tmp0 + tmp1, 3) & RANGE_MASK];
+  output_buf[1][output_col] =
+    range_limit[(int) IRIGHT_SHIFT(tmp0 - tmp1, 3) & RANGE_MASK];
 }
 
 #endif /* IDCT_SCALING_SUPPORTED */
